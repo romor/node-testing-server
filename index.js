@@ -46,7 +46,7 @@ let nodeTestingServer = {
                 fs.createReadStream(mainPagePath).pipe(res);
                 // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
                 if (nodeTestingServer.config.logsEnabled >= 1) {
-                    console.log(packageName, `Served ${mainPagePath} from the server to the client`);
+                    console.log(`Served ${mainPagePath} from the server to the client`);
                 }
                 if (nodeTestingServer.config.logsEnabled === 2) {
                     console.timeEnd('Response time');
@@ -95,74 +95,57 @@ let nodeTestingServer = {
                     contentType = 'image/png';
                     break;
                 default:
-                    contentType = 'text/html';
+                    contentType = 'text/plain';
             }
 
-            if (supportedFileExtensions.indexOf(fileExtension) === -1) {
-                res.writeHead(status404, { 'Content-Type': 'text/html' });
-                res.end(`<h1>Error 404: ${fileExtension} is not among supported file formats:
-                    ${supportedFileExtensions.join(', ')}</h1>`);
-
+            // is this page explicitely listed?
+            if (typeof nodeTestingServer.config.pages[fileURL] !== 'undefined') {
+                // then it will be generated from nodeTestingServer.config.pages
+                res.writeHead(status200, { 'Content-Type': contentType });
+                res.end(nodeTestingServer.config.pages[fileURL]);
                 // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
                 if (nodeTestingServer.config.logsEnabled >= 1) {
-                    // Print outcoming response CODE
-                    console.log(`Response: ${res.statusCode}`);
-                    console.log('========');
+                    console.log(res.statusCode, `Generated ${fileURL} from nodeTestingServer.config.pages`);
                 }
+            
             } else {
+                // check filesystem for match
                 fs.exists(filePath, (exists) => {
-                    if (!exists) {
-                        if (typeof nodeTestingServer.config.pages[fileURL] === 'undefined') {
-                            res.writeHead(status404, { 'Content-Type': 'text/html' });
-                            res.end(`<h1>Error 404: ${fileURL} is not set in nodeTestingServer.config.pages</h1>`);
-                        } else {
-                            // If requested page cannot be found in public/ folder,
-                            // then it will be generated from nodeTestingServer.config.pages
-                            res.writeHead(status200, { 'Content-Type': contentType });
-                            res.end(nodeTestingServer.config.pages[fileURL]);
-                            // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
-                            if (nodeTestingServer.config.logsEnabled >= 1) {
-                                console.log(packageName, `Generated ${fileURL} from nodeTestingServer.config.pages`);
-                            }
-                            if (nodeTestingServer.config.logsEnabled === 2) {
-                                console.timeEnd('Response time');
-                            }
-                        }
-
+                    if (exists) {
+                        res.writeHead(status200, { 'Content-Type': contentType });
+                        fs.createReadStream(filePath).pipe(res);
                         // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
                         if (nodeTestingServer.config.logsEnabled >= 1) {
-                            // Print outcoming response CODE
-                            console.log(`Response: ${res.statusCode}`);
-                            console.log('========');
+                            console.log(res.statusCode, `Served ${filePath} from the server to the client`);
                         }
-
+                    } else {
+                        res.writeHead(status404, { 'Content-Type': 'text/html' });
+                        res.end(`<h1>Error 404: ${fileURL} is not set in nodeTestingServer.config.pages</h1>`);
                         return;
                     }
-                    res.writeHead(status200, { 'Content-Type': contentType });
-                    fs.createReadStream(filePath).pipe(res);
-                    // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
-                    if (nodeTestingServer.config.logsEnabled >= 1) {
-                        // Print outcoming response CODE
-                        console.log(`Response: ${res.statusCode}`);
-                        console.log(packageName, `Served ${filePath} from the server to the client`);
-                        console.log('========');
-                    }
-                    if (nodeTestingServer.config.logsEnabled === 2) {
-                        console.timeEnd('Response time');
-                    }
-
-                    return;
                 });
             }
+            
+            // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
+            if (nodeTestingServer.config.logsEnabled === 2) {
+                console.timeEnd('Response time');
+            }
+            
         } else {
-            res.writeHead(status404, { 'Content-Type': 'text/html' });
-            res.end(`<h1>Error 404: ${req.method} is not supported</h1>`);
+            res.writeHead(status200, { 'Content-Type': 'text/plain' });
 
             // Show logs if they are enabled in nodeTestingServer.config.logsEnabled
             if (nodeTestingServer.config.logsEnabled >= 1) {
-                // Print outcoming response CODE
-                console.log(`Response: ${res.statusCode}`);
-                console.log('========');
+                // Print incoming request
+                let body = '';
+                req.on('data', chunk => {
+                    body += chunk.toString(); // convert Buffer to string
+                });
+                req.on('end', () => {
+                    console.log(`Request: ${body}`);
+                    res.end(`Got POST request: ${body}`);
+                    console.log('========');
+                });
             }
         }
     }),
